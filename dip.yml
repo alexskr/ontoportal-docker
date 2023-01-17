@@ -6,10 +6,11 @@ version: '7.5'
 #  RAILS_ENV: development
 
 compose:
+  name: ontoportal
   files:
     #- .docker-compose.yml
-    - docker-compose.yml
-  project_name: ontoportal-docker
+    - docker-compose.dev.yml
+  project_name: ontoportal-dev
 
 interaction:
   # This command spins up a ontologies_api container with the required dependencies (solr, 4store, etc),

@@ -27,17 +27,26 @@ x-app: &api
     4store:
       condition: service_started
 
-name: ontoportal
+name: ontoportal-dev
 
 services:
   api:
-    image: alexskr/ontologies_api:0.0.1
+    <<: *api
+    build:
+      <<: *build
+      context: ../ontologies_api
+    image: ontoportal_api:0.0.1
     command: "bundle exec rackup -o 0.0.0.0 --port 9393"
     volumes:
       # bundle volume for hosting gems installed by bundle; it helps in local development with gem udpates
+      - bundle:/srv/ontoportal/bundle
       - history:/usr/local/hist
+      # api code
+      - ./../ontologies_api:/srv/ontoportal/ontologies_api
       - repository:/srv/ontoportal/data/repository
       - reports:/srv/ontoportal/data/reports
+      # mount directory containing development version of the gems if you need to use 'bundle config local'
+      #- /Users/alexskr/ontoportal:/Users/alexskr/ontoportal
     ports:
       - 9393:9393
     depends_on:
@@ -52,9 +61,9 @@ services:
     command: "bundle exec bin/ncbo_cron"
     volumes:
       # bundle volume for hosting gems installed by bundle; it helps in local development with gem udpates
-      #      - bundle:/srv/ontoportal/bundle
+      - bundle:/srv/ontoportal/bundle
       - history:/usr/local/hist
-      # - ./../ncbo_cron:/srv/ontoportal/ncbo_cron
+      - ./../ncbo_cron:/srv/ontoportal/ncbo_cron
       - repository:/srv/ontoportal/data/repository
       - reports:/srv/ontoportal/data/reports
       - mgrep:/srv/ontoportal/data/mgrep

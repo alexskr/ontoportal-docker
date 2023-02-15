@@ -1,3 +1,5 @@
+name: ontoportal
+
 x-app: &api
   build: &build
     args:
@@ -13,8 +15,12 @@ x-app: &api
     - bundle:/srv/ontoportal/bundle
     - history:/usr/local/hist
   depends_on: &api_depends_on
-    solr:
-      condition: service_healthy
+    solr-term:
+      #condition: service_healthy
+      condition: service_started
+    solr-prop:
+      condition: service_started
+      #condition: service_healthy
     redis-persistent:
       condition: service_healthy
     redis-goo-cache:
@@ -23,15 +29,13 @@ x-app: &api
       condition: service_healthy
     mgrep:
       condition: service_started
-      #      condition: service_healthy    #FIXME: needs valid dictionary file to start which is not generated until ontology is processed
+      #      condition: service_healthy # FIXME: mgrep needs valid dictionary file to start which is not generated until ontology is processed
     4store:
       condition: service_started
 
-name: ontoportal
-
 services:
   api:
-    image: alexskr/ontologies_api:0.0.1
+    image: bioportal/ontologies_api:0.0.1
     command: "bundle exec rackup -o 0.0.0.0 --port 9393"
     volumes:
       # bundle volume for hosting gems installed by bundle; it helps in local development with gem udpates
@@ -42,13 +46,14 @@ services:
       - 9393:9393
     depends_on:
       <<: *api_depends_on
+    env_file:
+      .env
 
   ncbo_cron:
     <<: *api
     build:
       <<: *build
-      context: ../ncbo_cron
-    image: ontportal_ncbo_cron:0.0.1
+      context: bioportal/ncbo_cron:0.0.1
     command: "bundle exec bin/ncbo_cron"
     volumes:
       # bundle volume for hosting gems installed by bundle; it helps in local development with gem udpates
@@ -96,15 +101,31 @@ services:
 
   4store:
     image: bde2020/4store
-    volumes: 
+    volumes:
      - 4store_data:/var/lib/4store
     command: bash -c "4s-backend ontoportal_kb && 4s-httpd -D -s-1 -p 9000 ontoportal_kb"
 
-  # FIXME solr needs refactoring and data volume mounts
-  solr:
-    image: ontoportal/solr-ut:0.1
+  solr-term:
+    image: solr:9.1
+    volumes:
+      - solr-term_data:/var/solr
+      - ../ontologies_linked_data/test/solr/configsets/:/configsets:ro
+    command: solr-precreate term_search_core1 /configsets/term_search
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8983/solr/term_search_core1/admin/ping?wt=json | grep -iq '\"status\":\"OK\"}' || exit 1"]
+      start_period: 3s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  solr-prop:
+    image: solr:9.1
+    volumes:
+      - solr-prop_data:/var/solr
+      - ../ontologies_linked_data/test/solr/configsets/:/configsets:ro
+    command: solr-precreate prop_search_core1 /configsets/property_search
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8983/solr/prop_search_core1/admin/ping?wt=json | grep -iq '\"status\":\"OK\"}' || exit 1"]
       start_period: 3s
       interval: 10s
       timeout: 5s
@@ -130,3 +151,5 @@ volumes:
   redis_data:
   history:
   logs:
+  solr-term_data:
+  solr-prop_data:

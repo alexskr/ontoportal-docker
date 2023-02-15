@@ -1,3 +1,9 @@
+# docker compose for running ontoportal backend for development
+#
+# it expects to have git repos for ontologies_api, ncbo_cron and ontologies_linked_data
+# to be in the same directory as ontoportal_docker which will be mounted on the container
+# giving ability to run code from those directories inside container
+#
 x-app: &api
   build: &build
     args:
@@ -12,20 +18,6 @@ x-app: &api
     # bundle volume for hosting gems installed by bundle; it helps in local development with gem udpates
     - bundle:/srv/ontoportal/bundle
     - history:/usr/local/hist
-  depends_on: &api_depends_on
-    solr:
-      condition: service_healthy
-    redis-persistent:
-      condition: service_healthy
-    redis-goo-cache:
-      condition: service_healthy
-    redis-http-cache:
-      condition: service_healthy
-    mgrep:
-      condition: service_started
-      #      condition: service_healthy    #FIXME: needs valid dictionary file to start which is not generated until ontology is processed
-    4store:
-      condition: service_started
 
 name: ontoportal-dev
 
@@ -39,18 +31,12 @@ services:
     command: "bundle exec rackup -o 0.0.0.0 --port 9393"
     volumes:
       # bundle volume for hosting gems installed by bundle; it helps in local development with gem udpates
-      - bundle:/srv/ontoportal/bundle
-      - history:/usr/local/hist
       # api code
       - ./../ontologies_api:/srv/ontoportal/ontologies_api
-      - repository:/srv/ontoportal/data/repository
-      - reports:/srv/ontoportal/data/reports
       # mount directory containing development version of the gems if you need to use 'bundle config local'
       #- /Users/alexskr/ontoportal:/Users/alexskr/ontoportal
     ports:
       - 9393:9393
-    depends_on:
-      <<: *api_depends_on
 
   ncbo_cron:
     <<: *api
@@ -61,81 +47,5 @@ services:
     command: "bundle exec bin/ncbo_cron"
     volumes:
       # bundle volume for hosting gems installed by bundle; it helps in local development with gem udpates
-      - bundle:/srv/ontoportal/bundle
-      - history:/usr/local/hist
       - ./../ncbo_cron:/srv/ontoportal/ncbo_cron
-      - repository:/srv/ontoportal/data/repository
-      - reports:/srv/ontoportal/data/reports
-      - mgrep:/srv/ontoportal/data/mgrep
-      - logs:/srv/ontoportal/ncbo_cron/logs
-      # virtual_appliance contains bootstrap scripts
-      - ../virtual_appliance:/srv/ontoportal/virtual_appliance
-      # mount directory containing development version of the gems if you need to use 'bundle config local'
-      #- /Users/alexskr/ontoportal:/Users/alexskr/ontoportal
-    depends_on:
-      <<: *api_depends_on
 
-  redis-persistent:
-    image: redis
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: redis-cli ping
-      interval: 10s
-      timeout: 3s
-      retries: 10
-
-  redis-goo-cache:
-    image: redis
-    command: ["redis-server", "--save", "", "--maxmemory-policy", "allkeys-lru", "--maxmemory", "128000000"]
-    healthcheck:
-      test: redis-cli ping
-      interval: 10s
-      timeout: 3s
-      retries: 10
-
-  redis-http-cache:
-    image: redis
-    command: ["redis-server", "--save", "", "--maxmemory-policy", "volatile-ttl", "--maxmemory", "128000000"]
-    healthcheck:
-      test: redis-cli ping
-      interval: 10s
-      timeout: 3s
-      retries: 10
-
-  4store:
-    image: bde2020/4store
-    volumes: 
-     - 4store_data:/var/lib/4store
-    command: bash -c "4s-backend ontoportal_kb && 4s-httpd -D -s-1 -p 9000 ontoportal_kb"
-
-  # FIXME solr needs refactoring and data volume mounts
-  solr:
-    image: ontoportal/solr-ut:0.1
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8983/solr/term_search_core1/admin/ping?wt=json | grep -iq '\"status\":\"OK\"}' || exit 1"]
-      start_period: 3s
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  mgrep:
-    image: ontoportal/mgrep:0.0.1
-    volumes:
-      - mgrep:/srv/mgrep/dictionary
-    healthcheck:
-      test: ["CMD", "nc", "-z", "-v", "localhost", "55555"]
-      start_period: 3s
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-volumes:
-  bundle:
-  4store_data:
-  repository:
-  mgrep:
-  reports:
-  redis_data:
-  history:
-  logs:
